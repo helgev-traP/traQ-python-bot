@@ -1,0 +1,4 @@
+{
+  "cSpell.words": ["dotenvy", "pybot", "reqwest", "serde", "tungstenite"],
+  "rust-analyzer.linkedProjects": ["./app/Cargo.toml"]
+}
