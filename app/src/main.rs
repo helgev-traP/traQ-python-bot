@@ -1,5 +1,5 @@
 use futures::{future::BoxFuture, FutureExt};
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 use traq_python_bot::{
     event::{Event, Message, MessageBody, MessageCreatedUpdated},
@@ -8,16 +8,19 @@ use traq_python_bot::{
 };
 
 mod docker_manager;
-mod parse;
 use docker_manager::DockerManager;
+mod err;
+mod parse;
+use err::ServerError;
 
 #[tokio::main]
 async fn main() {
     if let Err(e) = server_main().await {
         eprintln!(
-            "\n\n
-            ========================================
-            Server stopped with error:\n{}",
+            "\n
+========================================\n
+Server stopped with error:\n
+{}\n",
             e
         );
     };
@@ -32,6 +35,8 @@ async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
     let host = std::env::var("TRAQ_HOST")?;
     let bot_id = std::env::var("TRAQ_BOT_ID")?;
     let token = std::env::var("TRAQ_BOT_TOKEN")?;
+
+    println!("Starting server...");
 
     // create parser
 
@@ -58,6 +63,8 @@ async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     );
 
+    println!("Parser created.");
+
     // prepare docker
 
     let docker_manager = DockerManager::builder("docker/tar").docker_files(
@@ -66,15 +73,17 @@ async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
         "Dockerfile",
     );
 
+    let docker = docker_manager.build().await?;
+
+    let stats = Stats { parser, docker };
+
+    println!("Docker prepared.");
+
     // create event loop
 
     let mut event_loop = EventLoop::build_from_host_and_token(host.to_string(), token).await;
-    let stats = Stats {
-        parser,
-        docker: docker_manager.build(),
-    };
+    println!("Start event loop.");
     event_loop.run(stats, event_loop_fn).await;
-
     Ok(())
 }
 
@@ -100,18 +109,19 @@ fn event_loop_fn(
                 {
                     let MessageBody { plain_text, .. } = message;
 
+                    println!("Received:\n{}", plain_text);
+
                     let Some((pattern_name, captures)) = &stats.parser.parse(&plain_text) else {
+                        println!("Send:\n:question:");
                         api.send_message(&message.channel_id, ":question:", false)
                             .await
                             .unwrap();
                         return;
                     };
 
-                    match pattern_name.as_str() {
+                    let response = match pattern_name.as_str() {
                         "ping" => {
-                            api.send_message(&message.channel_id, "pong", false)
-                                .await
-                                .unwrap();
+                            "pong".to_owned()
                         }
                         "docker-hello" => {
                             let result = stats.docker.hello().await.unwrap();
@@ -129,19 +139,13 @@ fn event_loop_fn(
                                 ));
                             }
 
-                            api.send_message(&message.channel_id, &output, false)
-                                .await
-                                .unwrap();
+                            output
                         }
                         "rm-all-containers" => {
-                            api.send_message(&message.channel_id, "not implemented.", false)
-                                .await
-                                .unwrap();
+                            "not implemented.".to_owned()
                         }
                         "rm-all-images" => {
-                            api.send_message(&message.channel_id, "not implemented.", false)
-                                .await
-                                .unwrap();
+                            "not implemented.".to_owned()
                         }
                         "python" => {
                             let code = captures["code"].to_string();
@@ -152,13 +156,13 @@ fn event_loop_fn(
 
                             let result = stats
                                 .docker
-                                .run_image(
-                                    "python:3.10-slim",
-                                    // vec![vec![code], args].into_iter().flatten().collect(),
-                                    Vec::<&str>::new(),
-                                )
-                                .await
-                                .unwrap();
+                                // .run_image(
+                                //     "python",
+                                //     // vec![vec![code], args].into_iter().flatten().collect(),
+                                //     Vec::<&str>::new(),
+                                // )
+                                .python(&code)
+                                .await;
 
                             let mut output = format!(
                                 "time: {}ms\nstdout:\n```\n{}\n```",
@@ -172,15 +176,17 @@ fn event_loop_fn(
                                     result.std_error
                                 ));
                             }
-
-                            api.send_message(&message.channel_id, &output, false)
-                                .await
-                                .unwrap();
+                            output
                         }
                         _ => {
-                            todo!()
+                            panic!("Unknown pattern name: {} | event loop do not match all patterns.", pattern_name);
                         }
-                    }
+                    };
+
+                    println!("Send:\n{}", response);
+                    api.send_message(&message.channel_id, &response, false)
+                        .await
+                        .unwrap();
                 }
             }
             tokio_tungstenite::tungstenite::Message::Close(close_frame) => todo!(),
