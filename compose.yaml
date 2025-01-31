@@ -1,0 +1,6 @@
+services:
+  pybot-server:
+    image: pybot-server
+    env_file:
+      - .env
+    restart: no

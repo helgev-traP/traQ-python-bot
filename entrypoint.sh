@@ -1,3 +1,3 @@
 #!/bin/sh
 
-dockerd & ./traq-python-bot
+dockerd & /app/traq-python-bot

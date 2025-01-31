@@ -29,14 +29,20 @@ Server stopped with error:\n
 }
 
 async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Starting server...");
+
     dotenvy::dotenv()?;
+
+    for (key, value) in std::env::vars() {
+        println!("{}: {}", key, value);
+    }
 
     let host = std::env::var("TRAQ_HOST")?;
     let bot_id = std::env::var("TRAQ_BOT_ID")?;
     let token = std::env::var("TRAQ_BOT_TOKEN")?;
     let sandbox_dir = std::env::var("SANDBOX_DIR")?;
 
-    println!("Starting server...");
+    println!("env loaded.");
 
     // create parser
 

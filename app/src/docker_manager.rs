@@ -393,6 +393,7 @@ impl DockerManager {
             attach_stdin: Some(true),
             attach_stdout: Some(true),
             attach_stderr: Some(true),
+            network_disabled: Some(true),
             host_config: Some(bollard::models::HostConfig {
                 binds: Some(vec![format!(
                     "{}:/sandbox:rw",
@@ -458,7 +459,7 @@ impl DockerManager {
         self.docker
             .stop_container(
                 &container_id,
-                Some(bollard::container::StopContainerOptions { t: 0 }),
+                Some(bollard::container::StopContainerOptions { t: 1 }),
             )
             .await
             .unwrap();
