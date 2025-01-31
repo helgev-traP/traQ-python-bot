@@ -35,6 +35,7 @@ async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
     let host = std::env::var("TRAQ_HOST")?;
     let bot_id = std::env::var("TRAQ_BOT_ID")?;
     let token = std::env::var("TRAQ_BOT_TOKEN")?;
+    let sandbox_dir = std::env::var("SANDBOX_DIR")?;
 
     println!("Starting server...");
 
@@ -67,15 +68,21 @@ async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
 
     // prepare docker
 
-    let docker_manager = DockerManager::builder("docker/tar").docker_files(
-        "python",
-        "./docker/python",
-        "Dockerfile",
-    );
+    // let docker_manager = DockerManager::builder("docker/tar", &sandbox_dir).docker_files(
+    //     "python",
+    //     "./docker/python",
+    //     "Dockerfile",
+    // );
+
+    let docker_manager = DockerManager::builder("docker/tar", &sandbox_dir);
 
     let docker = docker_manager.build().await?;
 
-    let stats = Stats { parser, docker };
+    let stats = Stats {
+        sandbox_dir,
+        parser,
+        docker,
+    };
 
     println!("Docker prepared.");
 
@@ -88,6 +95,7 @@ async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 struct Stats {
+    sandbox_dir: String,
     parser: parse::Parser,
     docker: DockerManager,
 }
@@ -120,9 +128,7 @@ fn event_loop_fn(
                     };
 
                     let response = match pattern_name.as_str() {
-                        "ping" => {
-                            "pong".to_owned()
-                        }
+                        "ping" => "pong".to_owned(),
                         "docker-hello" => {
                             let result = stats.docker.hello().await.unwrap();
 
@@ -141,12 +147,8 @@ fn event_loop_fn(
 
                             output
                         }
-                        "rm-all-containers" => {
-                            "not implemented.".to_owned()
-                        }
-                        "rm-all-images" => {
-                            "not implemented.".to_owned()
-                        }
+                        "rm-all-containers" => "not implemented.".to_owned(),
+                        "rm-all-images" => "not implemented.".to_owned(),
                         "python" => {
                             let code = captures["code"].to_string();
                             let args = captures["arg"]
@@ -154,32 +156,33 @@ fn event_loop_fn(
                                 .map(|s| s.to_string())
                                 .collect::<Vec<_>>();
 
-                            let result = stats
-                                .docker
-                                // .run_image(
-                                //     "python",
-                                //     // vec![vec![code], args].into_iter().flatten().collect(),
-                                //     Vec::<&str>::new(),
-                                // )
-                                .python(&code)
-                                .await;
+                            // let result = stats
+                            //     .docker
+                            //     .python(code, args, api.clone())
+                            //     .await;
 
-                            let mut output = format!(
-                                "time: {}ms\nstdout:\n```\n{}\n```",
-                                result.time.as_millis(),
-                                result.std_output
-                            );
+                            // let mut output = format!(
+                            //     "time: {}ms\nstdout:\n```\n{}\n```",
+                            //     result.time.as_millis(),
+                            //     result.std_output
+                            // );
 
-                            if !result.std_error.is_empty() {
-                                output.push_str(&format!(
-                                    "\nstderr:\n```\n{}\n```",
-                                    result.std_error
-                                ));
-                            }
-                            output
+                            // if !result.std_error.is_empty() {
+                            //     output.push_str(&format!(
+                            //         "\nstderr:\n```\n{}\n```",
+                            //         result.std_error
+                            //     ));
+                            // }
+
+                            python(code, args, &stats.sandbox_dir, &stats.docker)
+                                .await
+                                .unwrap()
                         }
                         _ => {
-                            panic!("Unknown pattern name: {} | event loop do not match all patterns.", pattern_name);
+                            panic!(
+                                "Unknown pattern name: {} | event loop do not match all patterns.",
+                                pattern_name
+                            );
                         }
                     };
 
@@ -194,4 +197,47 @@ fn event_loop_fn(
         }
     }
     .boxed()
+}
+
+async fn python(
+    code: String,
+    args: Vec<String>,
+    sandbox_dir: &str,
+    docker: &DockerManager,
+) -> Result<String, Box<dyn Error>> {
+    // prepare sandbox directory
+    let sandbox_dir = format!("{}/python-{}", sandbox_dir, uuid::Uuid::now_v7());
+    tokio::fs::create_dir_all(&sandbox_dir).await?;
+
+    // prepare sandbox input and output files
+    let input_file = format!("{}/python-code.py", &sandbox_dir);
+
+    // write code to input file
+    tokio::fs::write(&input_file, code).await?;
+
+    // run docker
+    let result = docker
+        .python3(args, &sandbox_dir, "python-code.py", "output.txt")
+        .await?;
+
+    println!("result: {:?}", result);
+
+    // read output file
+    println!("output file: {}/output.txt", sandbox_dir);
+    let output = tokio::fs::read_to_string(&format!("{}/output.txt", sandbox_dir)).await?;
+
+    // remove input and output files
+    tokio::fs::remove_file(&input_file).await?;
+    tokio::fs::remove_file(&format!("{}/output.txt", sandbox_dir)).await?;
+
+    // remove sandbox directory
+    tokio::fs::remove_dir_all(&sandbox_dir).await?;
+
+    Ok(
+        format!(
+            "container time: {}ms\nstdout:\n```\n{}\n```",
+            result.time.as_millis(),
+            output
+        )
+    )
 }

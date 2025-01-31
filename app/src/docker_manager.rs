@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, vec};
 
 use bollard::{container, image, Docker};
 use futures::StreamExt;
@@ -20,7 +20,10 @@ struct DockerFiles {
 }
 
 impl DockerManager {
-    pub fn builder(tar_dir: impl Into<String>) -> DockerManagerBuilder {
+    pub fn builder(
+        tar_dir: impl Into<String>,
+        sandbox_dir: impl Into<String>,
+    ) -> DockerManagerBuilder {
         DockerManagerBuilder {
             docker: Docker::connect_with_local_defaults().unwrap(),
             tar_dir: tar_dir.into(),
@@ -138,6 +141,7 @@ struct DockerImage {
     image_id: String,
 }
 
+#[derive(Debug)]
 pub struct RunResult {
     pub std_output: String,
     pub std_error: String,
@@ -360,15 +364,66 @@ impl DockerManager {
         })
     }
 
-    pub async fn python(&self, code: impl AsRef<str>) -> RunResult {
+    pub async fn python3(
+        &self,
+        args: Vec<impl AsRef<str>>,
+        host_mount_dir_path: impl AsRef<str>,
+        container_code_file_name: impl AsRef<str>,
+        container_output_file_name: impl AsRef<str>,
+    ) -> Result<RunResult, Box<dyn std::error::Error>> {
+        let container_code_file_path = format!("/sandbox/{}", container_code_file_name.as_ref());
+        let container_output_file_path =
+            format!("/sandbox/{}", container_output_file_name.as_ref());
+
+        // make cmd vec
+        // let cmd = vec![
+        //     vec!["sh", "-c"],
+        //     // execute python
+        //     vec!["python3", &container_code_file_path],
+        //     // args
+        //     args.iter().map(|arg| arg.as_ref()).collect::<Vec<_>>(),
+        //     // pipe stdout to output file
+        //     vec![">", &container_output_file_path],
+        // ]
+        // .into_iter()
+        // .flatten()
+        // .collect::<Vec<_>>();
+
+        // let cmd = [
+        //     "echo",
+        //     "hello from bash echo!",
+        //     ">",
+        //     &container_output_file_path,
+        //     "&&",
+        //     "echo",
+        //     "hello from bash echo2!",
+        // ]
+        // .join(" ")
+        // .to_string();
+
+        let cmd = [
+            "python3",
+            &container_code_file_path,
+            ">",
+            &container_output_file_path,
+        ]
+        .join(" ")
+        .to_string();
+
         let container_config = container::Config {
             image: Some("python:latest"),
-            // cmd: Some(vec!["python", "-c", code.as_ref()]),
-            cmd: Some(vec!["python", "-c", code.as_ref(), ">", "python_output.txt", "&&", "cat", "python_output.txt"]),
+            cmd: Some(vec!["sh", "-c", &cmd]),
             tty: Some(true),
             attach_stdin: Some(true),
             attach_stdout: Some(true),
             attach_stderr: Some(true),
+            host_config: Some(bollard::models::HostConfig {
+                binds: Some(vec![format!(
+                    "{}:/sandbox:rw",
+                    host_mount_dir_path.as_ref()
+                )]),
+                ..Default::default()
+            }),
             ..Default::default()
         };
 
@@ -407,18 +462,11 @@ impl DockerManager {
 
         while let Some(log) = logs.next().await {
             match log {
-                Ok(container::LogOutput::StdOut { message }) => {
-                    std_output.push_str(std::str::from_utf8(&message).unwrap());
-                }
                 Ok(container::LogOutput::StdErr { message }) => {
                     std_error.push_str(std::str::from_utf8(&message).unwrap());
                 }
                 Err(e) => {
-                    return RunResult {
-                        std_output: e.to_string(),
-                        std_error: "".to_owned(),
-                        time: timer.elapsed(),
-                    };
+                    return Err(e.into());
                 }
                 _ => {}
             }
@@ -447,11 +495,11 @@ impl DockerManager {
             .await
             .unwrap();
 
-        RunResult {
+        Ok(RunResult {
             std_output,
             std_error,
             time,
-        }
+        })
     }
 
     pub async fn rm_container(
