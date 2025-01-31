@@ -23,4 +23,6 @@ RUN chmod +x /app/traq-python-bot
 COPY /entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
+COPY /env-pub /app/.env
+
 ENTRYPOINT ["/app/entrypoint.sh"]
