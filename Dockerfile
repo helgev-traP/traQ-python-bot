@@ -17,12 +17,10 @@ RUN cargo build --release
 # === Run in DinD ===
 FROM docker:dind
 
-WORKDIR /app
+COPY --from=builder /app/target/release/traq-python-bot /app/traq-python-bot
+RUN chmod +x /app/traq-python-bot
 
-COPY --from=builder /app/target/release/traq-python-bot /traq-python-bot
-RUN chmod +x /traq-python-bot
+COPY /entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-COPY /entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
