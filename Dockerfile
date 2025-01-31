@@ -9,10 +9,12 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY /app/Cargo.toml /app/Cargo.lock ./
-RUN mkdir src && echo "fn main() {println!(\"if you see this, the build broke\")}"> src/main.rs && cargo build --release
+RUN mkdir src \
+    && echo "fn main() {println!(\"if you see this, the build broke\")}"> src/main.rs \
+    && cargo build --release --target x86_64-unknown-linux-musl
 
 COPY /app/src ./src
-RUN cargo build --release
+RUN cargo build --release --target x86_64-unknown-linux-musl
 
 # === Run in DinD ===
 FROM docker:dind
