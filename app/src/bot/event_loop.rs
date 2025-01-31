@@ -70,4 +70,37 @@ impl EventLoop {
             }
         }
     }
+
+    pub async fn run_blocking<Stats, F>(&mut self, stats: Stats, event_loop: F)
+    where
+        Stats: Send + Sync,
+        F: Fn(Message, TraqApi, std::sync::Arc<Stats>),
+    {
+        let stats = std::sync::Arc::new(stats);
+
+        let ws_read = &mut self.connecter.ws_read;
+        let ws_write = &mut self.connecter.ws_write;
+        let http_client = &self.connecter.http_client;
+
+        while let Some(message) = ws_read.next().await {
+            match message {
+                Ok(message) => {
+                    if let Message::Ping(_) = message {
+                        ws_write
+                            .send(Message::Pong(Default::default()))
+                            .await
+                            .unwrap();
+                        continue;
+                    } else {
+                        (event_loop)(message, http_client.clone(), stats.clone());
+                    }
+                }
+                Err(e) => {
+                    // todo: implement error handling
+                    println!("Error: {:?}", e);
+                    break;
+                }
+            }
+        }
+    }
 }

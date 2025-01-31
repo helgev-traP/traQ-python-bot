@@ -11,7 +11,6 @@ mod docker_manager;
 use docker_manager::DockerManager;
 mod err;
 mod parse;
-use err::ServerError;
 
 #[tokio::main]
 async fn main() {
@@ -156,24 +155,6 @@ fn event_loop_fn(
                                 .map(|s| s.to_string())
                                 .collect::<Vec<_>>();
 
-                            // let result = stats
-                            //     .docker
-                            //     .python(code, args, api.clone())
-                            //     .await;
-
-                            // let mut output = format!(
-                            //     "time: {}ms\nstdout:\n```\n{}\n```",
-                            //     result.time.as_millis(),
-                            //     result.std_output
-                            // );
-
-                            // if !result.std_error.is_empty() {
-                            //     output.push_str(&format!(
-                            //         "\nstderr:\n```\n{}\n```",
-                            //         result.std_error
-                            //     ));
-                            // }
-
                             python(code, args, &stats.sandbox_dir, &stats.docker)
                                 .await
                                 .unwrap()
@@ -223,7 +204,6 @@ async fn python(
     println!("result: {:?}", result);
 
     // read output file
-    println!("output file: {}/output.txt", sandbox_dir);
     let output = tokio::fs::read_to_string(&format!("{}/output.txt", sandbox_dir)).await?;
 
     // remove input and output files
@@ -233,11 +213,9 @@ async fn python(
     // remove sandbox directory
     tokio::fs::remove_dir_all(&sandbox_dir).await?;
 
-    Ok(
-        format!(
-            "container time: {}ms\nstdout:\n```\n{}\n```",
-            result.time.as_millis(),
-            output
-        )
-    )
+    Ok(format!(
+        "time: {}ms\nstdout:\n```\n{}\n```",
+        result.time.as_millis(),
+        output
+    ))
 }

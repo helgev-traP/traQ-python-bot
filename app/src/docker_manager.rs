@@ -375,32 +375,6 @@ impl DockerManager {
         let container_output_file_path =
             format!("/sandbox/{}", container_output_file_name.as_ref());
 
-        // make cmd vec
-        // let cmd = vec![
-        //     vec!["sh", "-c"],
-        //     // execute python
-        //     vec!["python3", &container_code_file_path],
-        //     // args
-        //     args.iter().map(|arg| arg.as_ref()).collect::<Vec<_>>(),
-        //     // pipe stdout to output file
-        //     vec![">", &container_output_file_path],
-        // ]
-        // .into_iter()
-        // .flatten()
-        // .collect::<Vec<_>>();
-
-        // let cmd = [
-        //     "echo",
-        //     "hello from bash echo!",
-        //     ">",
-        //     &container_output_file_path,
-        //     "&&",
-        //     "echo",
-        //     "hello from bash echo2!",
-        // ]
-        // .join(" ")
-        // .to_string();
-
         let cmd = [
             "python3",
             &container_code_file_path,
@@ -422,6 +396,7 @@ impl DockerManager {
                     "{}:/sandbox:rw",
                     host_mount_dir_path.as_ref()
                 )]),
+                init: Some(true),
                 ..Default::default()
             }),
             ..Default::default()
@@ -473,6 +448,8 @@ impl DockerManager {
         }
 
         let time = timer.elapsed();
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
         // stop and remove container
 
