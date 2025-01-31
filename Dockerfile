@@ -1,5 +1,5 @@
 # === Build Rust ===
-FROM rust:latest as builder
+FROM rust:latest AS builder
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY Cargo.toml Cargo.lock ./
+COPY /app/Cargo.toml /app/Cargo.lock ./
 RUN mkdir src && echo "fn main() {println!(\"if you see this, the build broke\")}"> src/main.rs && cargo build --release
 
 COPY /app/src ./src
@@ -22,9 +22,9 @@ WORKDIR /app
 COPY --from=builder /app/target/release/traq-python-bot /app/traq-python-bot
 RUN chmod +x /traq-python-bot
 
-COPY entrypoint.sh /entrypoint.sh
+COPY /entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-COPY .env /env
+COPY /.env /env
 
 ENTRYPOINT ["/entrypoint.sh"]
