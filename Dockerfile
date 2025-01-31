@@ -17,11 +17,6 @@ RUN cargo build --release
 # === Run in DinD ===
 FROM docker:dind
 
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY --from=builder /app/target/release/traq-python-bot /app/traq-python-bot
 RUN chmod +x /app/traq-python-bot
 
