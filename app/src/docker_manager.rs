@@ -384,8 +384,10 @@ impl DockerManager {
         .join(" ")
         .to_string();
 
+        let python_image = std::env::var("PYTHON_IMAGE").unwrap();
+
         let container_config = container::Config {
-            image: Some("python:latest"),
+            image: Some(python_image.as_str()),
             cmd: Some(vec!["sh", "-c", &cmd]),
             tty: Some(true),
             attach_stdin: Some(true),
