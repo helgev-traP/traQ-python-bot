@@ -41,6 +41,8 @@ async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
     let bot_id = std::env::var("TRAQ_BOT_ID")?;
     let token = std::env::var("TRAQ_BOT_TOKEN")?;
     let sandbox_dir = std::env::var("SANDBOX_DIR")?;
+    let wait_dockerd_time = std::env::var("WAIT_DOCKERD_TIME")?;
+    let wait_dockerd_time = wait_dockerd_time.parse::<u64>()?;
 
     println!("env loaded.");
 
@@ -79,7 +81,26 @@ async fn server_main() -> Result<(), Box<dyn std::error::Error>> {
     //     "Dockerfile",
     // );
 
-    let docker_manager = DockerManager::builder("docker/tar", &sandbox_dir);
+    // let docker_manager = DockerManager::builder("docker/tar", &sandbox_dir);
+
+    // wait for dockerd to be ready
+
+    let docker_manager = {
+        let mut i = 0;
+        loop {
+            match DockerManager::builder("docker/tar", &sandbox_dir) {
+                Ok(d) => break d,
+                Err(e) => {
+                    if i == wait_dockerd_time {
+                        return Err(e);
+                    } else {
+                        i += 1;
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                }
+            }
+        }
+    };
 
     let docker = docker_manager.build().await?;
 

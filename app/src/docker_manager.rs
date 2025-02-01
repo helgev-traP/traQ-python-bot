@@ -23,12 +23,12 @@ impl DockerManager {
     pub fn builder(
         tar_dir: impl Into<String>,
         sandbox_dir: impl Into<String>,
-    ) -> DockerManagerBuilder {
-        DockerManagerBuilder {
-            docker: Docker::connect_with_local_defaults().unwrap(),
+    ) -> Result<DockerManagerBuilder, Box<dyn std::error::Error>> {
+        Ok(DockerManagerBuilder {
+            docker: Docker::connect_with_local_defaults()?,
             tar_dir: tar_dir.into(),
             docker_files: HashMap::new(),
-        }
+        })
     }
 }
 

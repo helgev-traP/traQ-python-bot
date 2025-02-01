@@ -40,6 +40,9 @@ RUN chmod +x /app/traq-python-bot
 COPY /entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-CMD ["mkdir", "-p", "/app/sandbox"]
+# for running myself
+COPY /.env /.env
 
-ENTRYPOINT ["sh", "/app/entrypoint.sh"]
+RUN mkdir /app/sandbox
+
+ENTRYPOINT ["/app/entrypoint.sh"]
