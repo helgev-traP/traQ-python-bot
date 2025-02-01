@@ -231,7 +231,7 @@ async fn python(
     println!("result: {:?}", result);
 
     // read output file
-    let output = tokio::fs::read_to_string(&format!("{}/output.txt", sandbox_dir)).await?;
+    let mut output = tokio::fs::read_to_string(&format!("{}/output.txt", sandbox_dir)).await?;
 
     // remove input and output files
     tokio::fs::remove_file(&input_file).await?;
@@ -239,6 +239,10 @@ async fn python(
 
     // remove sandbox directory
     tokio::fs::remove_dir_all(&sandbox_dir).await?;
+
+    if output.ends_with('\n') {
+        output.pop();
+    }
 
     Ok(format!(
         "time: {}ms\nstdout:\n```\n{}\n```",
