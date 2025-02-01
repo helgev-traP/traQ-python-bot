@@ -1,3 +1,8 @@
 #!/bin/sh
 
-dockerd & /app/traq-python-bot
+dockerd &
+
+sleep 5
+
+docker pull python:latest
+/app/traq-python-bot
